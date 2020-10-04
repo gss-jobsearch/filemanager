@@ -1,8 +1,10 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using FileManager.Models;
 using Microsoft.AspNetCore.Mvc;
+
+using static FileManager.Models.IFileStorage;
 
 namespace FileManager.Controllers
 {
@@ -21,11 +23,24 @@ namespace FileManager.Controllers
 
         [HttpPost("{**path:required}")]
         [BinaryContent]
+        [DisableFormValueModelBinding]
         [ProducesResponseType(typeof(string), 409)]
         [ProducesResponseType(201)]
         public async Task<IActionResult> Upload(string path)
         {
-            throw new NotImplementedException();
+            path = UnSwaggerPath(path);
+            var result = await _storage.PutFile(path, Request.Body);
+            switch (result)
+            {
+                case Result.Succeeded:
+                    return CreatedAtAction(nameof(Download),
+						new { path = path },
+                        null);
+                case Result.FileExists:
+                    return Conflict("File Exists");
+                default:
+                    return Problem();
+            }
         }
 
         [HttpGet("{**path:required}")]
@@ -35,7 +50,17 @@ namespace FileManager.Controllers
         [ProducesResponseType(typeof(byte[]), 200)]
         public async Task<IActionResult> Download(string path)
         {
-            throw new NotImplementedException();
+            path = UnSwaggerPath(path);
+            var (result, stream) = await _storage.GetFile(path);
+            switch (result)
+            {
+                case Result.Succeeded:
+                    return File(stream, "application/octet-stream");
+                case Result.FileNotFound:
+                    return NotFound();
+                default:
+                    return Problem();
+            }
         }
 
         [HttpGet()]
@@ -43,7 +68,16 @@ namespace FileManager.Controllers
         [ProducesResponseType(typeof(IEnumerable<string>), 206)]
         public async Task<IActionResult> List([FromQuery] int max = MaxBlobItems)
         {
-            throw new NotImplementedException();
+            var (result, list) = await _storage.List(max);
+            switch (result)
+            {
+                case Result.Succeeded:
+                    return Ok(list);
+                case Result.Truncated:
+                    return StatusCode(206, list);
+                default:
+                    return Problem();
+            }
         }
 
         [HttpDelete("{**path:required}")]
@@ -52,8 +86,20 @@ namespace FileManager.Controllers
         [ProducesResponseType(202)]
         public async Task<IActionResult> Delete(string path)
         {
-            throw new NotImplementedException();
+            path = UnSwaggerPath(path);
+            var result = await _storage.DeleteFile(path);
+            switch (result)
+            {
+                case Result.Succeeded:
+                    return Accepted();
+                case Result.FileNotFound:
+                    return NotFound();
+                default:
+                    return Problem();
+            }
         }
+
+        private static string UnSwaggerPath(string path) => path.Replace("%2F", "/");
 
     }
 }
