@@ -23,22 +23,81 @@ namespace FileManager.Models
 
         public async Task<Result> DeleteFile(string path)
         {
-            throw new NotImplementedException();
+            BlobClient blob = _client.GetBlobClient(path);
+            try
+            {
+                using Response response = await blob.DeleteAsync();
+			    return ((response.Status / 100) == 2) ? Result.Succeeded : Result.Failed;
+            }
+            catch (RequestFailedException ex)
+            {
+                return ex.Message.Contains("BlobNotFound") ?
+				    Result.FileNotFound : Result.Failed;
+            }
         }
 
         public async Task<(Result, Stream?)> GetFile(string path)
         {
-            throw new NotImplementedException();
+            BlobClient blob = _client.GetBlobClient(path);
+            try
+            {
+                bool exists = await blob.ExistsAsync();
+                return exists ?
+					(Result.Succeeded, await blob.OpenReadAsync()) :
+                    (Result.FileNotFound, null);
+            }
+            catch (RequestFailedException)
+            {
+                return (Result.Failed, null);
+            }
         }
 
         public async Task<(Result, IEnumerable<string>)> List(int maxEntries = 0)
         {
-            throw new NotImplementedException();
+            var paths = new List<string>();
+            var blobs = _client.GetBlobsAsync(BlobTraits.None);
+            try
+            {
+                if (maxEntries > 0)
+                {
+                    int count = 0;
+                    await foreach (var blob in blobs)
+                    {
+                        if (++count > maxEntries)
+                        {
+                            return (Result.Truncated, paths);
+                        }
+                        paths.Add(blob.Name);
+                    }
+                }
+                else
+                {
+                    await foreach (var blob in blobs)
+                    {
+                        paths.Add(blob.Name);
+                    }
+                }
+                return (Result.Succeeded, paths);
+            }
+            catch (RequestFailedException)
+            {
+                return (Result.Failed, new string[0]);
+            }
         }
 
         public async Task<Result> PutFile(string path, Stream contents)
         {
-            throw new NotImplementedException();
+            BlobClient blob = _client.GetBlobClient(path);
+            try
+            {
+                Response response = (await blob.UploadAsync(contents, overwrite: false)).GetRawResponse();
+			    return ((response.Status / 100) == 2) ? Result.Succeeded : Result.Failed;
+            }
+            catch (RequestFailedException ex)
+            {
+                return ex.Message.Contains("BlobAlreadyExists") ?
+                    Result.FileExists : Result.Failed;
+            }
         }
 
     }
