@@ -6,6 +6,8 @@ The system supports several file operations:
 - list
 - delete
 
+Going to the root of the app gives the Swagger UI for API discovery.
+
 ## Simplifying Assumptions
 
 - Does not support some common file operations:
@@ -13,6 +15,7 @@ The system supports several file operations:
   - rename
   - folders/directories
 - No authentication or authorization
+- No logging or telemetry
 - Disallow overwriting an existing file
 
 ## Design
